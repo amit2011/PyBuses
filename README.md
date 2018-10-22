@@ -1,5 +1,8 @@
 # PyBuses
 
+**_This project is still Work in Progress._**
+_Things may change until the first production version._
+
 PyBuses is a Python framework that helps working with buses and bus stops,
 but it can be used with any other public transport such as trains, boats, metro...
 
@@ -11,9 +14,9 @@ The framework works with two basic assets:
 The base idea is to get a realtime list of all the buses coming to a stop, with the time remaining until arrival.
 Additionally, PyBuses can:
 
-* Manage Stops (save, search, list)
-* Manage Stops saved by the users, including collections of stops
+* Manage Stops (save, search, list, delete)
 * Show the available bus lines and routes
+* Search stops near a given location
 * Usage of Google Maps & Google StreetView to get real map & screenshots of the stops (based on location) 
 
 Please, notice that along all the documentation and code, transport vehicles are threated as "Bus",
@@ -88,7 +91,7 @@ the getter must raise the StopNotFound() exception.
 * If a Stop is not found, and the getter is really sure about that stop does not physically exist,
   it must raise the StopNotExist() exception.
 * If the data source is not available or have some problems or errors,
-the getter must throw the StopGetterUnavailable() exception.
+  the getter must throw the StopGetterUnavailable() exception.
 
 ```python  
 
@@ -172,5 +175,16 @@ Bus Setters are mostly optional, and more focused on having some sort of cache.
 
 
 #### c.4.ii) Static Bus deleters
+
+
+## d) The PyBuses object
+
+Any public transport service that will be managed with PyBuses must use one instance of the PyBuses object.
+This object should be threated as a concrete transport service, i.e.:
+- "the bus service of King's Landing"
+- "the metro service of Liberty City"
+- "the train service of Hamburg"
+- "the bus service of Hamburg"
+Each one of these services would have a PyBuses object, with their getters, setters and deleters.
 
 

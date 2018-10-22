@@ -47,6 +47,11 @@ class MissingSetters(PyBusesBuildError, SetterException):
     pass
 
 
+class MissingDeleters(PyBusesBuildError, DeleterException):
+    """Raised when trying to delete attributes of an asset without the appropiate Deleters defined."""
+    pass
+
+
 class ResourceUnavailable(PyBusesException, IOError):
     """Generic exception for any outside I/O resource that is not available or failed."""
 
