@@ -11,7 +11,9 @@ The framework works with two basic assets:
 * Buses: moving vehicles that arrive to Stops
 * Stops: where people wait for buses, and buses arrive
 
-The base idea is to get a realtime list of all the buses coming to a stop, with the time remaining until arrival.
+The original idea is to fetch a realtime list of all the buses coming to a certain stop, with the time remaining until
+  arrival, that users can see on apps, webapps, Telegram bots...
+
 Additionally, PyBuses can:
 
 * Manage Stops (save, search, list, delete)
@@ -42,6 +44,7 @@ They can have their geographic location through coordinates (latitude & longitud
 * name - human-readable Stop Name (required, string)
 * lat - location of this stop: Latitude (optional, float)
 * lon - location of this stop: Longitude (optional, float)
+* other - additional information of this Stop (optional, dict)
 
 ### b.2) Buses
 
@@ -55,8 +58,9 @@ serve information about all the available bus lines and routes on the city.
 
 * line - Bus line (required, str)
 * route - Bus route (required, str)
-* time - minutes remaining for the bus to arrive at a certain stop (required, int)
-* distance - how far away is the bus from a certain stop (optional, int)
+* time - minutes remaining for the bus to arrive at a certain stop (optional, int or float)
+* distance - how far away is the bus from a certain stop (optional, int or float)
+* other - additional information of this Bus (optional, dict)
 
 ## c) Getters, Setters and Deleters
 
@@ -128,7 +132,7 @@ the getter must raise the StopNotFound() exception.
 
 ### c.2) User-saved Stops functions
 
-
+(User-saved Stops managed by PyBuses or Telegram Bot framework?) 
 
 #### c.2.i) User-saved Stops getters
 

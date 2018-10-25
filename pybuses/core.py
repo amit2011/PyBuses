@@ -14,7 +14,6 @@ TIME = 1
 LINE = 2
 ROUTE = 3
 """
-
 _bus_sort_methods_namedtuple = namedtuple("BusSortMethods", ["NONE", "TIME", "LINE", "ROUTE"])
 BusSortMethods = _bus_sort_methods_namedtuple(0, 1, 2, 3)
 
@@ -96,6 +95,7 @@ class PyBuses(object):
 
     def find_stop(self, stopid: int) -> Stop:
         """Find a Stop using the defined Stop Getters on this PyBuses instances.
+        If no Getters are defined, MissingGetters exception is raised.
         :param stopid:
         :type stopid: int
         :return: Stop object
@@ -115,7 +115,8 @@ class PyBuses(object):
     def save_stop(self, stop: Stop):
         """Save the provided Stop object on the Stop setters defined.
         The stop will only be saved on the first Setter where the Stop was saved successfully,
-        unless use_all_stop_setters attribute of PyBuses class is True
+        unless use_all_stop_setters attribute of PyBuses class is True.
+        If no Setters are defined, MissingSetters exception is raised.
         :param stop: Stop object to save
         :type stop: Stop
         :raise: MissingSetters or StopSetterUnavailable
@@ -141,7 +142,8 @@ class PyBuses(object):
         The stop will only be deleted on the first Deleter where the Stop was deleted successfully,
         unless use_all_stop_deleters attribute of PyBuses class is True (which is by default).
         No exceptions will be raised if the stop was not deleted because it was not registered.
-        Only when the
+        Only when all the Deleters themselves failed, StopDeleterUnavailable will be raised.
+        If no Deleters are defined, MissingDeleters exception is raised.
         :param stopid: Stop ID of the Stop to delete
         :type stopid: int
         :raise: MissingDeleters or StopDeleterUnavailable
@@ -162,19 +164,19 @@ class PyBuses(object):
         if not success:
             raise StopDeleterUnavailable("Stop could not be deleted with any of the Stop deleters defined")
 
-    def get_buses(self, stopid: int, sort_by: Optional[int] = BusSortMethods.TIME, reversed: bool = False) -> List[Bus]:
+    def get_buses(self, stopid: int, sort_by: Optional[int] = BusSortMethods.TIME, reverse: bool = False) -> List[Bus]:
         """Get a live list of all the Buses coming to a certain Stop and the remaining until arrival.
+        If no Getters are defined, MissingGetters exception is raised.
         :param stopid: ID of the Stop to search buses on
-        :param sort_by: bus sorting method (use constants available in PyBuses (default=TIME: sort by Time)
-        :param reversed: if True, reverse sort the buses (default=False)
+        :param sort_by: method used to sort buses (use constants available in PyBuses (default=TIME: sort by Time)
+        :param reverse: if True, reverse sort the buses (default=False)
         :type stopid: int
         :type sort_by: int or None
-        :type reversed: bool
+        :type reverse: bool
         :return: List of Buses
         :rtype: List[Bus]
         :raise: MissingGetters or StopNotFound or BusGetterUnavailable
         """
-        # TODO BusGetters deberían tener más métodos, para obtener cierto número de buses?
         getters: List[BusGetter] = self.get_bus_getters()
         if not getters:
             raise MissingGetters("No Bus getters defined on this PyBuses instance")
@@ -182,16 +184,21 @@ class PyBuses(object):
             try:
                 buses: List[Bus] = getter(stopid)
                 if sort_by == BusSortMethods.TIME:
-                    buses.sort(key=lambda x: x.time, reverse=reversed)
+                    buses.sort(key=lambda x: x.line, reverse=reverse)
                 elif sort_by == BusSortMethods.LINE:
-                    buses.sort(key=lambda x: x.line, reverse=reversed)
+                    buses.sort(key=lambda x: x.line, reverse=reverse)
                 elif sort_by == BusSortMethods.ROUTE:
-                    buses.sort(key=lambda x: x.route, reverse=reversed)
-                # TODO Sort Buses
+                    buses.sort(key=lambda x: x.route, reverse=reverse)
                 return buses
             except BusGetterUnavailable:
                 continue
         raise BusGetterUnavailable("Bus list could not be retrieved with any of the Bus getters defined")
+
+    def save_buses(self):
+        pass
+
+    def delete_buses(self):
+        pass
 
     def add_stop_getter(self, f: StopGetter):
         self.stop_getters.append(f)
@@ -209,21 +216,22 @@ class PyBuses(object):
         self.bus_deleters.append(f)
 
     def get_stop_getters(self) -> List[StopGetter]:
-        # TODO ya no es necesario castear a list, porque sólo aceptamos list como entrada
-        return list(x for x in self.stop_getters)
+        return self.stop_getters
 
     def get_stop_setters(self) -> List[StopSetter]:
-        return list(x for x in self.stop_setters)
+        return self.stop_setters
 
     def get_stop_deleters(self) -> List[StopDeleter]:
-        return list(x for x in self.stop_deleters)
+        return self.stop_deleters
 
     def get_bus_getters(self) -> List[BusGetter]:
-        return list(x for x in self.bus_getters)
+        return self.bus_getters
 
     def get_bus_setters(self) -> List[BusSetter]:
-        return list(x for x in self.bus_setters)
+        return self.bus_setters
 
+    def get_bus_deleters(self) -> List[BusDeleter]:
+        return self.bus_deleters
 
 # class PyBusesOld(object):
 #     """A PyBuses object that will help organizing bus stops and lookup incoming buses.
