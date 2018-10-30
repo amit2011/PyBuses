@@ -96,6 +96,11 @@ the getter must raise the StopNotFound() exception.
   it must raise the StopNotExist() exception.
 * If the data source is not available or have some problems or errors,
   the getter must throw the StopGetterUnavailable() exception.
+* Stop Getters have an extra function attribute `online`, which is True
+  when the getter fetch the Stop info from an online, trustable source that keeps a real,
+  updated list of the existing Stops. Otherwise, it is False.
+  This attribute can be declared before passing the function through PyBuses constructor,
+  or by using the `online` parameter on the `add_stop_getter()` method of PyBuses.
 
 ```python  
 
@@ -107,7 +112,8 @@ the getter must raise the StopNotFound() exception.
 * The objectives of Stop setters are:
     * Avoid sending requests to an external API if not neccesary.
     * Allow users to search stops by name or location, which is faster with a local getter than asking a remote API.
-* Stop Setters receive as parameter a Stop object of PyBuses, with all the available information of the stop.
+* Setters receive as first parameter a Stop object "stop" of PyBuses, with all the available information of the stop.
+* Setters receive as second parameter a bool "update" which will update a currently saved Stop with the new data provided.
 * Stop Setters return nothing when an operation was successful.
 * If some error happened when saving the stop using a Setter, or the resource is not available,
   the setter must throw the StopSetterUnavailable() exception.

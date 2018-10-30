@@ -22,14 +22,17 @@ Structure of documents (fields with * are optional, so they can be missing on ce
 {
     "_id": 1234,
     "name": "123 Fake St.",
-    "saved": <dt>
-    "updated": <dt>
+    "saved": <dt>,
+    "updated": <dt>,
+    "other" : {dict}
     "lat": 1.23456, *
     "lon": -1.23456 *
 }
 ```
 Stop ID is used as the Document ID of MongoDB.
 <dt> are ints with the timestamp when Stop was saved for first time and updated for last time.
+Other is a dict with optional extra data declared on PyBuses Stop objects. Is always present although is empty.
+* these fields are optional, so some entries might not have them.
 Timestamps are saved on Unix/Epoch format, and UTC timezone.
 """
 # TODO add GoogleMaps & StreetView data to stop documents
@@ -178,7 +181,8 @@ class MongoDB(object):
         """
         try:
             self.check_client(True)
-            result = self.documents.find_one({"_id": stopid})
+            # result = self.documents.find_one({"_id": stopid})
+            result = self.documents.find_one({"_id": str(stopid)})
         except PyMongoError:
             raise StopGetterUnavailable(
                 f"Error while searching for Stop {stopid} on MongoDB:\n{traceback.format_exc()}"
@@ -198,14 +202,15 @@ class MongoDB(object):
         :raise: PyMongoError or MongoDBNotAvailable
         """
         self.check_client(True)
-        return bool(self.documents.find_one({"_id": stopid}))
+        # return bool(self.documents.find_one({"_id": stopid}))
+        return bool(self.documents.find_one({"_id": str(stopid)}))
 
     def save_stop(self, stop: Stop, update: bool = True):
         """Save or update a Stop on this MongoDB.
         If update=True and the stop is currently saved, it will be updated with the Stop provided.
         This method is used as a StopSetter function of PyBuses.
         :param stop:
-        :param update: if True, update stop in database with the Stop provided
+        :param update: if True, when the Stop to save exists in database, update it with the Stop provided
         :type stop: Stop
         :type update: bool
         :raise: StopSetterUnavailable
@@ -215,26 +220,31 @@ class MongoDB(object):
             exists = self.is_stop_saved(stop.stopid)
             if not exists:
                 # Add new Stop
-                d = dict()
-                d["_id"] = stop.id
-                d["name"] = stop.name
+                # d = dict()
+                d = dict(stop)
+                stopid = d.pop("stopid")
+                # d["_id"] = stopid
+                d["_id"] = str(stopid)
+                # d["name"] = stop.name
                 curtime = current_datetime()
                 d["saved"] = curtime
                 d["updated"] = curtime
-                if stop.has_location():
-                    d["lat"] = stop.lat
-                    d["lon"] = stop.lon
+                # if stop.has_location():
+                #     d["lat"] = stop.lat
+                #     d["lon"] = stop.lon
                 self.documents.insert_one(d)
             else:
                 # Update existing Stop if param update=True
                 if not update:
                     return
-                d = dict()
+                # d = dict()
+                d = dict(stop)
+                d.pop("stopid")
                 d["updated"] = current_datetime()
-                d["name"] = stop.name
-                if stop.has_location():
-                    d["lat"] = stop.lat
-                    d["lon"] = stop.lon
+                # d["name"] = stop.name
+                # if stop.has_location():
+                #     d["lat"] = stop.lat
+                #     d["lon"] = stop.lon
                 self.documents.update_one(
                     filter={"_id": stop.stopid},
                     update={"$set": d}
@@ -253,14 +263,15 @@ class MongoDB(object):
         """
         try:
             self.check_client(True)
-            return bool(self.collection.delete_one({"_id": stopid}).deleted_count)
+            # return bool(self.collection.delete_one({"_id": stopid}).deleted_count)
+            return bool(self.collection.delete_one({"_id": str(stopid)}).deleted_count)
         except PyMongoError:
             raise StopSetterUnavailable(f"Error while deleting Stop from MongoDB:\n{traceback.format_exc()}")
             # QUESTION keep traceback?
 
 
 def dict_to_stop(dictionary: dict) -> Stop:
-    """Convert a dictionary with Stop info to a Stop object.
+    """Convert a dictionary with Stop info, returned by MongoDB, to a Stop object.
     The dictionary must have valid Stop info, with at least "_id" and "name" keys.
     :param dictionary: Dictionary given by a Stop query on MongoDB
     :type dictionary: dict

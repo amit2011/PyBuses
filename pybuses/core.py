@@ -2,6 +2,7 @@
 # Native modules
 from typing import Optional, List  # Python => 3.5
 from collections import namedtuple
+from threading import Thread, Lock
 # Own modules
 from .exceptions import *
 from .assets import *
@@ -93,16 +94,18 @@ class PyBuses(object):
         self.use_all_stop_deleters: bool = use_all_stop_deleters
         self.use_all_bus_deleters: bool = use_all_bus_deleters
 
-    def find_stop(self, stopid: int) -> Stop:
+    def find_stop(self, stopid: int, online: bool = False) -> Stop:
         """Find a Stop using the defined Stop Getters on this PyBuses instances.
         If no Getters are defined, MissingGetters exception is raised.
-        :param stopid:
+        :param stopid: ID of the Stop to find
+        :param online: if True, only search on Online Getters (default=False)
         :type stopid: int
+        :type online: bool
         :return: Stop object
         :rtype: list of Stop or False or Exception
         :raise: MissingGetters or StopNotFound or StopGetterUnavailable
         """
-        getters: List[StopGetter] = self.get_stop_getters()
+        getters: List[StopGetter] = self.get_stop_getters(online)
         if not getters:
             raise MissingGetters("No Stop getters defined on this PyBuses instance")
         for getter in getters:  # type: StopGetter
@@ -112,27 +115,36 @@ class PyBuses(object):
                 continue
         raise StopGetterUnavailable("Stop info could not be retrieved for any of the Stop getters defined")
 
-    def save_stop(self, stop: Stop):
+    def save_stop(self, stop: Stop, update: bool = True, use_all_stop_setters: Optional[bool] = None):
         """Save the provided Stop object on the Stop setters defined.
         The stop will only be saved on the first Setter where the Stop was saved successfully,
-        unless use_all_stop_setters attribute of PyBuses class is True.
+        unless use_all_stop_setters attribute of PyBuses class or on this method is True.
         If no Setters are defined, MissingSetters exception is raised.
+        If any of the Stop setters worked, StopSetterUnavailable exception is raised.
         :param stop: Stop object to save
+        :param update: if True, when the Stop currently exists on a Setter data destination,
+                       update stop on destination with the current data of the Stop provided (default=True)
+        :param use_all_stop_setters: if True, save the Stop on all the Stop Setters
+               (default=use the value declared on this PyBuses instance)
         :type stop: Stop
+        :type update: bool
+        :type use_all_stop_setters: bool or None
         :raise: MissingSetters or StopSetterUnavailable
         """
         setters: List[StopSetter] = self.get_stop_setters()
         if not setters:
             raise MissingSetters("No Stop setters defined on this PyBuses instance")
         success = False
+        if use_all_stop_setters is None:
+            use_all_stop_setters = self.use_all_stop_setters
         for setter in setters:  # type: StopSetter
             try:
-                setter(stop)
+                setter(stop, update=update)
             except StopSetterUnavailable:
                 continue
             else:
                 success = True
-                if not self.use_all_stop_setters:
+                if not use_all_stop_setters:
                     break
         if not success:
             raise StopSetterUnavailable("Stop could not be saved on any of the Stop setters defined")
@@ -164,6 +176,102 @@ class PyBuses(object):
         if not success:
             raise StopDeleterUnavailable("Stop could not be deleted with any of the Stop deleters defined")
 
+    def find_all_stops(
+            self,
+            end: int,
+            start: int = 1,
+            threads: int = 0,
+            update: bool = True,
+            use_all_stop_getters: bool = False,
+            use_all_stop_setters: Optional[bool] = None
+    ):
+        """Find all the stops when the online resources do not provide a full list of Stops.
+        This method will manually search the Stops by ID sequentially
+        between the start and end ranges using the available Stop Getters.
+        The method can run on the background using thread.
+        The threads parameter define how many threads will be used. By default is 0, which means use no threads.
+        All the found stops will be saved/updated using the Stop setters defined on the PyBuses instance.
+        :param end: Stop ID limit to search
+        :param start: First Stop ID to search (default=1)
+        :param threads: number of threads to use (default=0: use no threads)
+        :param update: if True, when a found Stop currently exists on a Setter data destination,
+                       update stop on destination with the current data of the Stop provided (default=True)
+        :param use_all_stop_getters: if True, ignore the StopNotExist/StopNotFound exceptions
+                                     and keep searching on next getters (default=False)
+        :param use_all_stop_setters: if True, save each Stop on all the Stop Setters
+                                     (default=use the value declared on this PyBuses instance)
+        :type end: int
+        :type start: int
+        :type threads: int
+        :type update: bool
+        :type use_all_stop_getters: bool
+        :type use_all_stop_setters: bool or None
+        :return: List[Stop] or None
+        :raise: MissingGetters or MissingSetters
+        """
+        getters: List[StopGetter] = self.get_stop_getters(True)  # Get all Online getters
+        if not getters:
+            raise MissingGetters("No Stop getters defined on this PyBuses instance")
+        if not self.get_stop_setters():
+            raise MissingSetters("No Stop setters defined on this PyBuses instance")
+
+        def _find_stop_and_save(stopid_tofind):  # Function used by threads/no-thread
+            for getter in getters:  # type: StopGetter
+                try:
+                    print("Searching Stop", stopid_tofind)
+                    stop = getter(stopid_tofind)
+                except StopGetterUnavailable:
+                    continue
+                except (StopNotFound, StopNotExist):
+                    if use_all_stop_getters:
+                        continue
+                    else:
+                        break
+                else:
+                    try:
+                        print(f"Stop {stop.stopid} found! Name={stop.name}, lat={stop.lat}, lon={stop.lon}")
+                        self.save_stop(stop, update=update, use_all_stop_setters=use_all_stop_setters)
+                    except StopSetterUnavailable:
+                        pass
+
+        if threads <= 0:  # Use no threads
+            for stopid in range(start, end+1):
+                _find_stop_and_save(stopid)
+        else:  # Use threads
+            # created_threads = list()
+
+            class Counter(object):
+                def __init__(self, initial, limit):
+                    self.value: int = initial
+                    self.limit: int = limit
+                    self.lock = Lock()
+
+                def get(self):
+                    self.lock.acquire()
+                    current = self.value
+                    if current > self.limit:
+                        self.lock.release()
+                        raise IndexError()
+                    self.value += 1
+                    self.lock.release()
+                    return current
+
+            counter = Counter(initial=start, limit=end)
+
+            def _thread_f(th_counter: Counter):  # Function for threads
+                while True:
+                    try:
+                        stopid_tofind = th_counter.get()
+                    except IndexError:
+                        break
+                    else:
+                        _find_stop_and_save(stopid_tofind)
+
+            for i in range(threads):
+                th = Thread(target=_thread_f, args=(counter,))
+                # created_threads.append(th)
+                th.start()
+
     def get_buses(self, stopid: int, sort_by: Optional[int] = BusSortMethods.TIME, reverse: bool = False) -> List[Bus]:
         """Get a live list of all the Buses coming to a certain Stop and the remaining until arrival.
         If no Getters are defined, MissingGetters exception is raised.
@@ -184,7 +292,7 @@ class PyBuses(object):
             try:
                 buses: List[Bus] = getter(stopid)
                 if sort_by == BusSortMethods.TIME:
-                    buses.sort(key=lambda x: x.line, reverse=reverse)
+                    buses.sort(key=lambda x: x.time, reverse=reverse)
                 elif sort_by == BusSortMethods.LINE:
                     buses.sort(key=lambda x: x.line, reverse=reverse)
                 elif sort_by == BusSortMethods.ROUTE:
@@ -200,7 +308,12 @@ class PyBuses(object):
     def delete_buses(self):
         pass
 
-    def add_stop_getter(self, f: StopGetter):
+    def add_stop_getter(self, f: StopGetter, online: bool = False):
+        try:
+            f.online = online
+        except AttributeError:
+            pass
+        # TOFIX Los métodos no pueden llevar atributos, por lo que hay que buscar otra forma de definir el online
         self.stop_getters.append(f)
 
     def add_stop_setter(self, f: StopSetter):
@@ -215,8 +328,15 @@ class PyBuses(object):
     def add_bus_deleter(self, f: BusDeleter):
         self.bus_deleters.append(f)
 
-    def get_stop_getters(self) -> List[StopGetter]:
-        return self.stop_getters
+    def get_stop_getters(self, online: bool = False) -> List[StopGetter]:
+        if online:
+            return [
+                g for g in self.stop_getters
+                if "online" in g.__dict__.keys()  # Avoid AttributeError when getter does not have the attribute defined
+                   and g.online is True
+            ]
+        else:
+            return self.stop_getters
 
     def get_stop_setters(self) -> List[StopSetter]:
         return self.stop_setters

@@ -50,6 +50,10 @@ class Bus(object):
         """
         return _clean_dict(self.__dict__)
 
+    def __iter__(self):
+        for k, v in self.asdict().items():
+            yield k, v
+
 
 class Stop(object):
     """A bus Stop, identified by a Stop ID. Buses will arrive to it."""
@@ -63,19 +67,20 @@ class Stop(object):
     ):
         """
         :param stopid: Stop ID/Number (required)
-        :param name: Stop name (not required for reference to custom stop getters)
+        :param name: Stop name (required)
         :param lat: Stop location latitude (optional, default=None)
         :param lon: Stop location longitude (optional, default=None)
         :type stopid: int
-        :type name: str or None
+        :type name: str
         :type lat: float or None
         :type lon: float or None
         .. note:: StopID, Lat and Lon values will be casted on __init__
+        .. note:: Stop Name will be strip on __init__
         .. note:: Lat and Lon are both required
         """
         self.stopid: int = int(stopid)
-        self.id: int = self.stopid
-        self.name: str = str(name).strip() if name else None  # QUESTION Reference to custom stop getters?
+        # self.id: int = self.stopid
+        self.name: str = name.strip()
         self.other: Dict = other if other is not None else dict()
         if lat is None or lon is None:
             self.lat: float = None
@@ -98,6 +103,10 @@ class Stop(object):
         :rtype: dict
         """
         return _clean_dict(self.__dict__)
+
+    def __iter__(self):
+        for k, v in self.asdict().items():
+            yield k, v
 
 
 # https://docs.python.org/3/library/typing.html#newtype
